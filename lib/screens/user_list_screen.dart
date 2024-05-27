@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_vibrate/flutter_vibrate.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import './call_screen.dart';
 import '../services/signalling.service.dart';
 
@@ -14,17 +16,35 @@ class UserListScreen extends StatefulWidget {
 
 class _UserListScreenState extends State<UserListScreen> {
   dynamic incomingSDPOffer;
- List<String> users = [];
+  List<String> users = [];
 
   @override
-  void initState() {
+   void initState() {
     super.initState();
     SignallingService.instance.socket!.on("newCall", (data) {
       if (mounted) {
-        // set SDP Offer of incoming call
         setState(() => incomingSDPOffer = data);
+        _playIncomingCallAlert();
       }
     });
+    SignallingService.instance.onCallRejected((data) {
+      if (mounted && data['callerId'] == widget.selfCallerId) {
+        setState(() => incomingSDPOffer = null);
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CallScreen(
+              callerId: widget.selfCallerId,
+              calleeId: data['calleeId'],
+            ),
+          ),
+        ).then((_) {
+          setState(() => incomingSDPOffer = null);
+        });
+      }
+    });
+
     _setupSignalling();
   }
 
@@ -35,11 +55,23 @@ class _UserListScreenState extends State<UserListScreen> {
       });
     });
   }
-   _answerCall({
+Future<void> _playIncomingCallAlert() async {
+    FlutterRingtonePlayer.playRingtone();
+    if (await Vibrate.canVibrate) {
+      Vibrate.vibrate();
+    }
+  }
+
+  void _stopIncomingCallAlert() {
+    FlutterRingtonePlayer.stop();
+  }
+  _answerCall({
     required String callerId,
-     required String calleeId,
+    required String calleeId,
     dynamic offer,
   }) {
+    _stopIncomingCallAlert();
+    setState(() => incomingSDPOffer = null);
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -49,8 +81,16 @@ class _UserListScreenState extends State<UserListScreen> {
           offer: offer,
         ),
       ),
-    );
+    ).then((_) {
+      setState(() => incomingSDPOffer = null);
+    });
   }
+
+  _rejectCall(String callerId, String calleeId) {
+    SignallingService.instance.rejectCall(callerId, calleeId);
+    setState(() => incomingSDPOffer = null);
+  }
+
   @override
   Widget build(BuildContext context) {
     List<String> otherUsers = users.where((user) => user != widget.selfCallerId).toList();
@@ -93,7 +133,8 @@ class _UserListScreenState extends State<UserListScreen> {
                       icon: const Icon(Icons.call_end),
                       color: Colors.redAccent,
                       onPressed: () {
-                        setState(() => incomingSDPOffer = null);
+                        _stopIncomingCallAlert();
+                        _rejectCall(incomingSDPOffer["callerId"], widget.selfCallerId);
                       },
                     ),
                     IconButton(
@@ -101,9 +142,9 @@ class _UserListScreenState extends State<UserListScreen> {
                       color: Colors.greenAccent,
                       onPressed: () {
                         _answerCall(
-                           callerId: incomingSDPOffer["callerId"],
-                            calleeId: widget.selfCallerId,
-                            offer: incomingSDPOffer["sdpOffer"],
+                          callerId: incomingSDPOffer["callerId"],
+                          calleeId: widget.selfCallerId,
+                          offer: incomingSDPOffer["sdpOffer"],
                         );
                       },
                     )

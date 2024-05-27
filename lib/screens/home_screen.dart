@@ -13,14 +13,14 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-   SignallingService.instance.init(websocketUrl: 'https://videodev.stream4tech.app', selfCallerID: '');
+   SignallingService.instance.init(websocketUrl: 'http://192.168.6.64:5000', selfCallerID: '');
   }
 
   void _register() {
     final name = _nameController.text;
     if (name.isNotEmpty) {
       SignallingService.instance.register(name);
-       SignallingService.instance.init(websocketUrl: 'https://videodev.stream4tech.app', selfCallerID: name);
+       SignallingService.instance.init(websocketUrl: 'http://192.168.6.64:5000', selfCallerID: name);
       Navigator.push(
         context,
         MaterialPageRoute(

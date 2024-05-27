@@ -37,16 +37,20 @@ class _CallScreenState extends State<CallScreen> {
 
   // media status
   bool isAudioOn = true, isVideoOn = true, isFrontCameraSelected = true;
-
+  bool callRejected = false;
   @override
   void initState() {
-    // initializing renderers
+     super.initState();
+    SignallingService.instance.onCallRejected((data) {
+      if (data['callerId'] == widget.callerId && data['calleeId'] == widget.calleeId) {
+        setState(() {
+          callRejected = true;
+        });
+      }
+    });
     _localRTCVideoRenderer.initialize();
     _remoteRTCVideoRenderer.initialize();
-
-    // setup Peer Connection
     _setupPeerConnection();
-    super.initState();
   }
 
   @override
@@ -166,12 +170,34 @@ class _CallScreenState extends State<CallScreen> {
         "sdpOffer": offer.toMap(),
       });
     }
+    socket!.on('leaveCall', (data) {
+     _handleRemoteLeave();
+    });
   }
 
   _leaveCall() {
+    socket!.emit('leaveCall', {
+      "callerId": widget.callerId,
+      "calleeId": widget.calleeId,
+    });
+    // Clean up local resources
+    _cleanUp();
     Navigator.pop(context);
   }
+  _handleRemoteLeave() {
+    _cleanUp();
+    if (mounted) {
+      Navigator.pop(context);
+    }
+  }
 
+  _cleanUp() {
+    _rtcPeerConnection?.close();
+    _rtcPeerConnection = null;
+    _localStream?.dispose();
+    _remoteRTCVideoRenderer.srcObject = null;
+    _localRTCVideoRenderer.srcObject = null;
+  }
   _toggleMic() {
     // change status
     isAudioOn = !isAudioOn;
@@ -217,6 +243,12 @@ class _CallScreenState extends State<CallScreen> {
           children: [
             Expanded(
               child: Stack(children: [
+                callRejected
+            ? Text(
+                'Call Rejected',
+                style: TextStyle(color: Colors.red, fontSize: 24),
+              )
+            : Text('In Call with ${widget.calleeId}'),
                 RTCVideoView(
                   _remoteRTCVideoRenderer,
                   objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
@@ -271,9 +303,10 @@ class _CallScreenState extends State<CallScreen> {
 
   @override
   void dispose() {
+     _cleanUp();
     _localRTCVideoRenderer.dispose();
     _remoteRTCVideoRenderer.dispose();
-    _localStream?.dispose();
+   _localStream?.dispose();
     _rtcPeerConnection?.dispose();
     super.dispose();
   }
