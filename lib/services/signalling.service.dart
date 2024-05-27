@@ -2,29 +2,35 @@ import 'dart:developer';
 import 'package:socket_io_client/socket_io_client.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 class SignallingService {
-  // instance of Socket
   IO.Socket? socket;
 
   SignallingService._privateConstructor();
   static final SignallingService instance = SignallingService._privateConstructor();
 
-  void init({required String websocketUrl}) {
-    // init Socket
-    socket = IO.io(websocketUrl, IO.OptionBuilder()
-        .setTransports(['websocket']) // Correct the transports option
-        .build());
+  void init({required String websocketUrl, required String selfCallerID}) {
+    socket = io(websocketUrl, {
+      'transports': ['websocket'],
+      'query': {'callerId': selfCallerID}
+    });
 
-    // listen onConnect event
-    socket!.onConnect((data) {
+   socket!.onConnect((data) {
       log("Socket connected !!");
     });
 
-    // listen onConnectError event
     socket!.onConnectError((data) {
       log("Connect Error $data");
     });
 
-    // connect socket
     socket!.connect();
+  }
+
+  void register(String name) {
+    socket!.emit('register', name);
+  }
+
+  void onUpdateUserList(Function(List<String>) callback) {
+    socket!.on('updateUserList', (data) {
+      callback(List<String>.from(data));
+    });
   }
 }
