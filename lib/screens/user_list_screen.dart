@@ -4,11 +4,14 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import './call_screen.dart';
 import '../services/signalling.service.dart';
+import 'package:vibration/vibration.dart';
+import 'package:flutter/services.dart';
 
 class UserListScreen extends StatefulWidget {
   final String selfCallerId;
 
-  const UserListScreen({Key? key, required this.selfCallerId}) : super(key: key);
+  const UserListScreen({Key? key, required this.selfCallerId})
+      : super(key: key);
 
   @override
   _UserListScreenState createState() => _UserListScreenState();
@@ -19,7 +22,7 @@ class _UserListScreenState extends State<UserListScreen> {
   List<String> users = [];
 
   @override
-   void initState() {
+  void initState() {
     super.initState();
     SignallingService.instance.socket!.on("newCall", (data) {
       if (mounted) {
@@ -27,25 +30,24 @@ class _UserListScreenState extends State<UserListScreen> {
         _playIncomingCallAlert();
       }
     });
-    SignallingService.instance.onCallRejected((data) {
-      if (mounted && data['callerId'] == widget.selfCallerId) {
-        setState(() => incomingSDPOffer = null);
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => CallScreen(
-              callerId: widget.selfCallerId,
-              calleeId: data['calleeId'],
-            ),
-          ),
-        ).then((_) {
-          setState(() => incomingSDPOffer = null);
-        });
-      }
-    });
-
     _setupSignalling();
+    // SignallingService.instance.onCallRejected((data) {
+    //   if (mounted && data['callerId'] == widget.selfCallerId) {
+    //     setState(() => incomingSDPOffer = null);
+
+    //     Navigator.push(
+    //       context,
+    //       MaterialPageRoute(
+    //         builder: (_) => CallScreen(
+    //           callerId: widget.selfCallerId,
+    //           calleeId: data['calleeId'],
+    //         ),
+    //       ),
+    //     ).then((_) {
+    //       setState(() => incomingSDPOffer = null);
+    //     });
+    //   }
+    // });
   }
 
   void _setupSignalling() {
@@ -55,23 +57,25 @@ class _UserListScreenState extends State<UserListScreen> {
       });
     });
   }
-Future<void> _playIncomingCallAlert() async {
+
+  Future<void> _playIncomingCallAlert() async {
     FlutterRingtonePlayer.playRingtone();
-    if (await Vibrate.canVibrate) {
-      Vibrate.vibrate();
-    }
+    // if (await Vibration.canVibrate) {
+    Vibration.vibrate(pattern: [500, 1000, 500, 2000, 500, 3000, 500, 500]);
+    HapticFeedback.vibrate();
+    //}
   }
 
   void _stopIncomingCallAlert() {
     FlutterRingtonePlayer.stop();
   }
+
   _answerCall({
     required String callerId,
     required String calleeId,
     dynamic offer,
   }) {
     _stopIncomingCallAlert();
-    setState(() => incomingSDPOffer = null);
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -93,7 +97,8 @@ Future<void> _playIncomingCallAlert() async {
 
   @override
   Widget build(BuildContext context) {
-    List<String> otherUsers = users.where((user) => user != widget.selfCallerId).toList();
+    List<String> otherUsers =
+        users.where((user) => user != widget.selfCallerId).toList();
     String formattedUsers = otherUsers.join(', ');
     return Scaffold(
       appBar: AppBar(
@@ -134,7 +139,8 @@ Future<void> _playIncomingCallAlert() async {
                       color: Colors.redAccent,
                       onPressed: () {
                         _stopIncomingCallAlert();
-                        _rejectCall(incomingSDPOffer["callerId"], widget.selfCallerId);
+                        _rejectCall(
+                            incomingSDPOffer["callerId"], widget.selfCallerId);
                       },
                     ),
                     IconButton(
