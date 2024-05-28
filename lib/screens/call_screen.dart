@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../services/signalling.service.dart';
@@ -17,34 +19,21 @@ class CallScreen extends StatefulWidget {
 }
 
 class _CallScreenState extends State<CallScreen> {
-  // Socket instance
   final socket = SignallingService.instance.socket;
-
-  // VideoRenderer for localPeer
   final _localRTCVideoRenderer = RTCVideoRenderer();
-
-  // VideoRenderer for remotePeer
   final _remoteRTCVideoRenderer = RTCVideoRenderer();
-
-  // MediaStream for localPeer
   MediaStream? _localStream;
-
-  // RTC peer connection
   RTCPeerConnection? _rtcPeerConnection;
-
-  // List of RTCIceCandidate to be sent over signalling
   List<RTCIceCandidate> rtcIceCandidates = [];
-
-  // Media status
   bool isAudioOn = true, isVideoOn = true, isFrontCameraSelected = true;
   bool callRejected = false;
-
   @override
   void initState() {
     super.initState();
     _initializeRenderers();
     _setupPeerConnection();
     _listenForCallRejection();
+    _listenForRemoteLeave();
   }
 
   void _initializeRenderers() async {
@@ -54,12 +43,26 @@ class _CallScreenState extends State<CallScreen> {
 
   void _listenForCallRejection() {
     SignallingService.instance.onCallRejected((data) {
-      if (data['callerId'] == widget.callerId && data['calleeId'] == widget.calleeId) {
+      if (data.containsKey('calleeId')) {
         setState(() {
           callRejected = true;
         });
+        _showSnackbar('Call rejected by ${widget.calleeId}');
       }
     });
+  }
+  void _listenForRemoteLeave() {
+    socket!.on('leaveCall', (data) {
+      if ((data['callerId'] == widget.callerId && data['calleeId'] == widget.calleeId) ||
+          (data['callerId'] == widget.calleeId && data['calleeId'] == widget.callerId)) {
+        _handleRemoteLeave();
+      }
+    });
+  }
+  void _showSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
@@ -152,7 +155,8 @@ class _CallScreenState extends State<CallScreen> {
 
   _handleOutgoingCall() async {
     // Listen for local IceCandidate and add it to the list of IceCandidate
-    _rtcPeerConnection!.onIceCandidate = (RTCIceCandidate candidate) => rtcIceCandidates.add(candidate);
+    _rtcPeerConnection!.onIceCandidate =
+        (RTCIceCandidate candidate) => rtcIceCandidates.add(candidate);
 
     // When call is accepted by remote peer
     socket!.on("callAnswered", (data) async {
@@ -195,15 +199,21 @@ class _CallScreenState extends State<CallScreen> {
       "callerId": widget.callerId,
       "calleeId": widget.calleeId,
     });
-    _cleanUp();
-    Navigator.pop(context);
+    socket!.on('leaveCallAcknowledgment', (data) {
+      // Check if acknowledgment is received for the current call
+      if (data['callerId'] == widget.callerId &&
+          data['calleeId'] == widget.calleeId) {
+        _cleanUp();
+        Navigator.pop(context);
+      }
+    });
   }
 
   _handleRemoteLeave() {
     _cleanUp();
-    if (mounted) {
-      Navigator.pop(context);
-    }
+    // if (mounted) {
+    Navigator.pop(context);
+    //}
   }
 
   _cleanUp() {
@@ -230,12 +240,13 @@ class _CallScreenState extends State<CallScreen> {
     setState(() {});
   }
 
-  _switchCamera() {
-    isFrontCameraSelected = !isFrontCameraSelected;
-    _localStream?.getVideoTracks().forEach((track) {
-      track.switchCamera();
-    });
-    setState(() {});
+  _switchCamera() async {
+    if (_localStream != null) {
+      bool? value = await _localStream?.getVideoTracks()[0].switchCamera();
+      while (value == isFrontCameraSelected)
+        value = await _localStream?.getVideoTracks()[0].switchCamera();
+      isFrontCameraSelected = value!;
+    }
   }
 
   @override
@@ -252,16 +263,17 @@ class _CallScreenState extends State<CallScreen> {
               child: Stack(
                 children: [
                   callRejected
-                    ? Center(
-                        child: Text(
-                          'Call Rejected',
-                          style: TextStyle(color: Colors.red, fontSize: 24),
+                      ? Center(
+                          child: Text(
+                            'Call Rejected',
+                            style: TextStyle(color: Colors.red, fontSize: 24),
+                          ),
+                        )
+                      : RTCVideoView(
+                          _remoteRTCVideoRenderer,
+                          objectFit:
+                              RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
                         ),
-                      )
-                    : RTCVideoView(
-                        _remoteRTCVideoRenderer,
-                        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-                      ),
                   Positioned(
                     right: 20,
                     bottom: 20,
@@ -271,7 +283,8 @@ class _CallScreenState extends State<CallScreen> {
                       child: RTCVideoView(
                         _localRTCVideoRenderer,
                         mirror: isFrontCameraSelected,
-                        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                        objectFit:
+                            RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
                       ),
                     ),
                   ),
@@ -311,11 +324,12 @@ class _CallScreenState extends State<CallScreen> {
 
   @override
   void dispose() {
-    _cleanUp();
+   _cleanUp();
     _localRTCVideoRenderer.dispose();
     _remoteRTCVideoRenderer.dispose();
-    _localStream?.dispose();
-    _rtcPeerConnection?.dispose();
+    // _localStream?.dispose();
+   // _rtcPeerConnection?.dispose();
+   
     super.dispose();
   }
 }

@@ -31,25 +31,15 @@ class _UserListScreenState extends State<UserListScreen> {
       }
     });
     _setupSignalling();
-    // SignallingService.instance.onCallRejected((data) {
-    //   if (mounted && data['callerId'] == widget.selfCallerId) {
-    //     setState(() => incomingSDPOffer = null);
-
-    //     Navigator.push(
-    //       context,
-    //       MaterialPageRoute(
-    //         builder: (_) => CallScreen(
-    //           callerId: widget.selfCallerId,
-    //           calleeId: data['calleeId'],
-    //         ),
-    //       ),
-    //     ).then((_) {
-    //       setState(() => incomingSDPOffer = null);
-    //     });
-    //   }
-    // });
+    SignallingService.instance.onCallRejected((data) {
+      if (mounted && data['callerId'] == widget.selfCallerId) {
+        setState(() => incomingSDPOffer = null);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Call rejected by ${data['calleeId']}"))
+        );
+      }
+    });
   }
-
   void _setupSignalling() {
     SignallingService.instance.onUpdateUserList((data) {
       setState(() {
@@ -60,10 +50,8 @@ class _UserListScreenState extends State<UserListScreen> {
 
   Future<void> _playIncomingCallAlert() async {
     FlutterRingtonePlayer.playRingtone();
-    // if (await Vibration.canVibrate) {
     Vibration.vibrate(pattern: [500, 1000, 500, 2000, 500, 3000, 500, 500]);
     HapticFeedback.vibrate();
-    //}
   }
 
   void _stopIncomingCallAlert() {
@@ -90,8 +78,8 @@ class _UserListScreenState extends State<UserListScreen> {
     });
   }
 
-  _rejectCall(String callerId, String calleeId) {
-    SignallingService.instance.rejectCall(callerId, calleeId);
+  _rejectCall(String callerId) {
+    SignallingService.instance.rejectCall(callerId);
     setState(() => incomingSDPOffer = null);
   }
 
@@ -140,7 +128,7 @@ class _UserListScreenState extends State<UserListScreen> {
                       onPressed: () {
                         _stopIncomingCallAlert();
                         _rejectCall(
-                            incomingSDPOffer["callerId"], widget.selfCallerId);
+                            incomingSDPOffer["callerId"]);
                       },
                     ),
                     IconButton(

@@ -27,8 +27,8 @@ class SignallingService {
   void register(String name) {
     socket!.emit('register', name);
   }
-   void rejectCall(String callerId, String calleeId) {
-    socket?.emit('callRejected', {'callerId': callerId, 'calleeId': calleeId});
+   void rejectCall(String callerId) {
+    socket?.emit('rejectCall', {'callerId': callerId});
   }
   void onCallRejected(Function(dynamic) callback) {
     socket!.on('callRejected', (data) {
