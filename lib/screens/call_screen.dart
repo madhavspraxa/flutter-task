@@ -53,10 +53,7 @@ class _CallScreenState extends State<CallScreen> {
   }
   void _listenForRemoteLeave() {
     socket!.on('leaveCall', (data) {
-      if ((data['callerId'] == widget.callerId && data['calleeId'] == widget.calleeId) ||
-          (data['callerId'] == widget.calleeId && data['calleeId'] == widget.callerId)) {
         _handleRemoteLeave();
-      }
     });
   }
   void _showSnackbar(String message) {
@@ -200,20 +197,14 @@ class _CallScreenState extends State<CallScreen> {
       "calleeId": widget.calleeId,
     });
     socket!.on('leaveCallAcknowledgment', (data) {
-      // Check if acknowledgment is received for the current call
-      if (data['callerId'] == widget.callerId &&
-          data['calleeId'] == widget.calleeId) {
-        _cleanUp();
-        Navigator.pop(context);
-      }
+       _handleRemoteLeave();
+      //}
     });
   }
 
   _handleRemoteLeave() {
     _cleanUp();
-    // if (mounted) {
     Navigator.pop(context);
-    //}
   }
 
   _cleanUp() {
@@ -324,12 +315,10 @@ class _CallScreenState extends State<CallScreen> {
 
   @override
   void dispose() {
-   _cleanUp();
+   
     _localRTCVideoRenderer.dispose();
     _remoteRTCVideoRenderer.dispose();
-    // _localStream?.dispose();
-   // _rtcPeerConnection?.dispose();
-   
+   _cleanUp();
     super.dispose();
   }
 }
